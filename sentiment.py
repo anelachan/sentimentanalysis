@@ -1,7 +1,7 @@
 """
 Class to score sentiment of text.
 
-Domain-independent method of dictionary lookup of sentiment words,
+Use domain-independent method of dictionary lookup of sentiment words,
 handling negations and multiword expressions. Based on SentiWordNet 3.0.
 
 """
@@ -9,33 +9,19 @@ handling negations and multiword expressions. Based on SentiWordNet 3.0.
 import nltk
 import re
 
+
 class SentimentAnalysis(object):
+    """Class to get sentiment score based on analyzer."""
 
     def __init__(self, filename='SentiWordNet.txt', weighting='geometric'):
-
-        self.filename = filename
+        """Initialize with filename and choice of weighting."""
         if weighting not in ('geometric', 'harmonic', 'average'):
             raise ValueError(
                 'Allowed weighting options are geometric, harmonic, average')
-        else:
-            self.weighting = weighting
-
-            # parse file and build sentiwordnet dicts
-            self.swn_pos = {'a': {}, 'v': {}, 'r': {}, 'n': {}}
-            self.swn_all = {}
-            self.build_swn()
-
-            # init sentiwordnet lookup/scoring tools
-            self.impt = set(['NNS', 'NN', 'NNP', 'NNPS', 'JJ', 'JJR', 'JJS',
-                             'RB', 'RBR', 'RBS', 'VB', 'VBD', 'VBG', 'VBN',
-                             'VBP', 'VBZ', 'unknown'])
-            self.non_base = set(['VBD', 'VBG', 'VBN', 'VBP', 'VBZ', 'NNS',
-                                 'NNPS'])
-            self.negations = set(['not', 'n\'t', 'less', 'no', 'never',
-                                  'nothing', 'nowhere', 'hardly', 'barely',
-                                  'scarcely', 'nobody', 'none'])
-            self.stopwords = nltk.corpus.stopwords.words('english')
-            self.wnl = nltk.WordNetLemmatizer()
+        # parse file and build sentiwordnet dicts
+        self.swn_pos = {'a': {}, 'v': {}, 'r': {}, 'n': {}}
+        self.swn_all = {}
+        self.build_swn(filename, weighting)
 
     def average(self, score_list):
         """Get arithmetic average of scores."""
@@ -63,9 +49,9 @@ class SentimentAnalysis(object):
             num += 1
         return weighted_sum
 
-    def build_swn(self):
+    def build_swn(self, filename, weighting):
         """Build class's lookup based on SentiWordNet 3.0."""
-        records = [line.split('\t') for line in open(self.filename)]
+        records = [line.split('\t') for line in open(filename)]
         for rec in records:
             # has many words in 1 entry
             words = rec[4].split()
@@ -88,21 +74,21 @@ class SentimentAnalysis(object):
             for word in self.swn_pos[pos].keys():
                 newlist = [self.swn_pos[pos][word][k] for k in sorted(
                     self.swn_pos[pos][word].keys())]
-                if self.weighting == 'average':
+                if weighting == 'average':
                     self.swn_pos[pos][word] = self.average(newlist)
-                if self.weighting == 'geometric':
+                if weighting == 'geometric':
                     self.swn_pos[pos][word] = self.geometric_weighted(newlist)
-                if self.weighting == 'harmonic':
+                if weighting == 'harmonic':
                     self.swn_pos[pos][word] = self.harmonic_weighted(newlist)
 
         for word in self.swn_all.keys():
             newlist = [self.swn_all[word][k] for k in sorted(
                 self.swn_all[word].keys())]
-            if self.weighting == 'average':
+            if weighting == 'average':
                 self.swn_all[word] = self.average(newlist)
-            if self.weighting == 'geometric':
+            if weighting == 'geometric':
                 self.swn_all[word] = self.geometric_weighted(newlist)
-            if self.weighting == 'harmonic':
+            if weighting == 'harmonic':
                 self.swn_all[word] = self.harmonic_weighted(newlist)
 
     def pos_short(self, pos):
@@ -130,6 +116,17 @@ class SentimentAnalysis(object):
 
     def score(self, sentence):
         """Sentiment score a sentence."""
+        # init sentiwordnet lookup/scoring tools
+        impt = set(['NNS', 'NN', 'NNP', 'NNPS', 'JJ', 'JJR', 'JJS',
+                    'RB', 'RBR', 'RBS', 'VB', 'VBD', 'VBG', 'VBN',
+                    'VBP', 'VBZ', 'unknown'])
+        non_base = set(['VBD', 'VBG', 'VBN', 'VBP', 'VBZ', 'NNS', 'NNPS'])
+        negations = set(['not', 'n\'t', 'less', 'no', 'never',
+                         'nothing', 'nowhere', 'hardly', 'barely',
+                         'scarcely', 'nobody', 'none'])
+        stopwords = nltk.corpus.stopwords.words('english')
+        wnl = nltk.WordNetLemmatizer()
+
         scores = []
         tokens = nltk.tokenize.word_tokenize(sentence)
         tagged = nltk.pos_tag(tokens)
@@ -139,7 +136,7 @@ class SentimentAnalysis(object):
 
             pos = el[1]
             try:
-                word = re.match('(\w+)',el[0]).group(0).lower()
+                word = re.match('(\w+)', el[0]).group(0).lower()
                 start = index - 5
                 if start < 0:
                     start = 0
@@ -169,11 +166,11 @@ class SentimentAnalysis(object):
                     pos = 'unknown'
 
                 # perform lookup
-                if (pos in self.impt) and (word not in self.stopwords):
-                    if pos in self.non_base:
-                        word = self.wnl.lemmatize(word, self.pos_short(pos))
+                if (pos in impt) and (word not in stopwords):
+                    if pos in non_base:
+                        word = wnl.lemmatize(word, self.pos_short(pos))
                     score = self.score_word(word, self.pos_short(pos))
-                    if len(self.negations.intersection(set(neighborhood))) > 0:
+                    if len(negations.intersection(set(neighborhood))) > 0:
                         score = -score
                     scores.append(score)
 
@@ -188,10 +185,7 @@ class SentimentAnalysis(object):
             return 0
 
     def is_multiword(self, words):
-        """Test if a group fo words is a multiword expression."""
+        """Test if a group of words is a multiword expression."""
         joined = '_'.join(words)
-        return joined in self.swn_all:
+        return joined in self.swn_all
 
-if __name__ == '__main__':
-    s = SentimentAnalysis()
-    print s.score('I fucking hate you.')
